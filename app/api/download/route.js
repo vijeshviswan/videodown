@@ -9,25 +9,25 @@ import path from 'path';
 ffmpeg.setFfmpegPath(ffmpegPath);
 
 export async function GET(request) {
-    var searchParams = new URL(request.url).searchParams;
-    var url = searchParams.get('url');
-    var itag = searchParams.get('itag');
-    var name = searchParams.get('name') || 'video';
-    var hasAudio = searchParams.get('hasAudio') !== 'false';
+    const searchParams = new URL(request.url).searchParams;
+    const url = searchParams.get('url');
+    const itag = searchParams.get('itag');
+    const name = searchParams.get('name') || 'video';
+    const hasAudio = searchParams.get('hasAudio') !== 'false';
 
     if (!url || !itag) {
         return new NextResponse('Missing parameters', { status: 400 });
     }
 
-    var agent = null;
+    let agent = null;
     try {
-        var cookiesPath = path.resolve(process.cwd(), 'cookies.json');
+        const cookiesPath = path.resolve(process.cwd(), 'cookies.json');
         if (process.env.YOUTUBE_COOKIES) {
-            var cookies = JSON.parse(process.env.YOUTUBE_COOKIES);
+            const cookies = JSON.parse(process.env.YOUTUBE_COOKIES);
             agent = ytdl.createAgent(cookies);
         } else if (fs.existsSync(cookiesPath)) {
-            var fileContent = fs.readFileSync(cookiesPath, 'utf8');
-            var localCookies = JSON.parse(fileContent);
+            const fileContent = fs.readFileSync(cookiesPath, 'utf8');
+            const localCookies = JSON.parse(fileContent);
             agent = ytdl.createAgent(localCookies);
         }
     } catch (err) {
@@ -35,58 +35,60 @@ export async function GET(request) {
     }
 
     try {
-        var cleanName = name.replace(/[^\w\s-]/g, '').trim();
+        const cleanName = name.replace(/[^\w\s-]/g, '').trim();
 
         if (hasAudio) {
-            var info = await ytdl.getInfo(url, { agent: agent });
-            var format = null;
-            for (var i = 0; i < info.formats.length; i++) {
-                if (info.formats[i].itag === parseInt(itag)) {
-                    format = info.formats[i];
-                    break;
-                }
-            }
+            const info = await ytdl.getInfo(url, { agent: agent });
+            const format = info.formats.find(f => f.itag === parseInt(itag));
+
             if (!format) return new NextResponse('Format not found', { status: 404 });
 
-            var filename = cleanName + '.' + format.container;
-            var headers = new Headers();
-            headers.set('Content-Disposition', 'attachment; filename="' + filename + '"');
+            const filename = cleanName + '.' + format.container;
+            const headers = new Headers();
+            headers.set('Content-Disposition', `attachment; filename="${filename}"`);
             headers.set('Content-Type', 'application/octet-stream');
 
-            var passthrough = new PassThrough();
-            var videoStream = ytdl(url, { quality: parseInt(itag), agent: agent });
-            videoStream.pipe(passthrough);
-
-            return new NextResponse(passthrough, { headers: headers });
-        } else {
-            var infoHigh = await ytdl.getInfo(url, { agent: agent });
-            var videoFormat = null;
-            for (var j = 0; j < infoHigh.formats.length; j++) {
-                if (infoHigh.formats[j].itag === parseInt(itag)) {
-                    videoFormat = infoHigh.formats[j];
-                    break;
+            const videoStream = ytdl(url, {
+                quality: parseInt(itag),
+                agent: agent,
+                requestOptions: {
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        'Referer': 'https://www.youtube.com/'
+                    }
                 }
-            }
+            });
 
-            var audioFormat = ytdl.filterFormats(infoHigh.formats, 'audioonly').find(function (f) {
-                return f.container === 'mp4';
-            }) || ytdl.filterFormats(infoHigh.formats, 'audioonly')[0];
+            // Convert Node.js stream to Web Stream for Next.js 13+ App Router
+            const webStream = PassThrough.toWeb(videoStream);
+
+            videoStream.on('error', (err) => {
+                console.error('YTDL Stream Error:', err);
+            });
+
+            return new NextResponse(webStream, { headers });
+        } else {
+            const infoHigh = await ytdl.getInfo(url, { agent: agent });
+            const videoFormat = infoHigh.formats.find(f => f.itag === parseInt(itag));
+
+            const audioFormat = ytdl.filterFormats(infoHigh.formats, 'audioonly').find(f => f.container === 'mp4')
+                || ytdl.filterFormats(infoHigh.formats, 'audioonly')[0];
 
             if (!videoFormat || !audioFormat) {
                 return new NextResponse('Format not found', { status: 404 });
             }
 
-            var filenameHq = cleanName + '.mp4';
-            var headersHq = new Headers();
-            headersHq.set('Content-Disposition', 'attachment; filename="' + filenameHq + '"');
+            const filenameHq = cleanName + '.mp4';
+            const headersHq = new Headers();
+            headersHq.set('Content-Disposition', `attachment; filename="${filenameHq}"`);
             headersHq.set('Content-Type', 'video/mp4');
 
-            var inputOptions = [
+            const inputOptions = [
                 '-headers', 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 '-headers', 'Referer: https://www.youtube.com/'
             ];
 
-            var passthroughHq = new PassThrough();
+            const passthroughHq = new PassThrough();
 
             ffmpeg()
                 .input(videoFormat.url)
@@ -102,7 +104,9 @@ export async function GET(request) {
                 })
                 .pipe(passthroughHq, { end: true });
 
-            return new NextResponse(passthroughHq, { headers: headersHq });
+            const webStreamHq = PassThrough.toWeb(passthroughHq);
+
+            return new NextResponse(webStreamHq, { headers: headersHq });
         }
     } catch (error) {
         console.error('Download System Error:', error);
