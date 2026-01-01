@@ -73,7 +73,8 @@ export default function Downloader() {
                         <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', opacity: 0.9, borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: '0.5rem' }}>
                             <strong>Debug Info:</strong><br />
                             Cookies Loaded: {data.debug.cookiesLoaded ? '✅ Yes' : '❌ No'}<br />
-                            Source: {data.debug.authSource.toUpperCase()}
+                            Source: {data.debug.authSource.toUpperCase()}<br />
+                            {data.debug.cookieError && <span style={{ color: '#ffaaaa' }}>Cookie Error: {data.debug.cookieError}</span>}
                         </div>
                     )}
                 </div>
