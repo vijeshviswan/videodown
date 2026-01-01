@@ -27,7 +27,13 @@ export default function Downloader() {
 
             const json = await res.json();
 
-            if (!res.ok) throw new Error(json.error || 'Failed to fetch info');
+            if (!res.ok) {
+                // If it's a 500 error from our API, it might contain debug info
+                if (json.debug) {
+                    setData({ debug: json.debug }); // Store debug info even if failed
+                }
+                throw new Error(json.error || 'Failed to fetch info');
+            }
 
             setData(json);
         } catch (err) {
@@ -61,7 +67,15 @@ export default function Downloader() {
             {error && (
                 <div className={styles.error}>
                     <AlertCircle size={20} style={{ display: 'inline', marginRight: '0.5rem', verticalAlign: 'middle' }} />
-                    {error}
+                    <strong>Error:</strong> {error}
+
+                    {data?.debug && (
+                        <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', opacity: 0.9, borderTop: '1px solid rgba(0,0,0,0.1)', paddingTop: '0.5rem' }}>
+                            <strong>Debug Info:</strong><br />
+                            Cookies Loaded: {data.debug.cookiesLoaded ? '✅ Yes' : '❌ No'}<br />
+                            Source: {data.debug.authSource.toUpperCase()}
+                        </div>
+                    )}
                 </div>
             )}
 

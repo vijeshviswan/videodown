@@ -82,6 +82,17 @@ export async function POST(request) {
         return NextResponse.json(payload);
     } catch (error) {
         console.error('YTDL Error:', error);
-        return NextResponse.json({ error: 'Failed to fetch video info. ' + error.message }, { status: 500 });
+
+        // Debug info to help user diagnose (safe to expose generic status)
+        const debug = {
+            cookiesLoaded: !!agent, // true if agent was created
+            authSource: process.env.YOUTUBE_COOKIES ? 'env' : (fs.existsSync(path.resolve(process.cwd(), 'cookies.json')) ? 'file' : 'none'),
+            errorMsg: error.message
+        };
+
+        return NextResponse.json({
+            error: 'Failed to fetch video info. ' + error.message,
+            debug
+        }, { status: 500 });
     }
 }
