@@ -82,7 +82,7 @@ export default function Downloader() {
 
             {loading && <div className={styles.loader}></div>}
 
-            {data && (
+            {data && data.title && data.formats && (
                 <div className={`card ${styles.videoCard}`}>
                     <img src={data.thumbnail} alt={data.title} className={styles.thumbnail} />
 
