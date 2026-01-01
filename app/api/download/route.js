@@ -3,6 +3,8 @@ import ytdl from '@distube/ytdl-core';
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegPath from 'ffmpeg-static';
 import { PassThrough } from 'stream';
+import fs from 'fs';
+import path from 'path';
 
 ffmpeg.setFfmpegPath(ffmpegPath);
 
@@ -18,11 +20,20 @@ export async function GET(request) {
     }
 
     try {
+        const cookiesPath = path.resolve(process.cwd(), 'cookies.json');
+        let agent;
+        try {
+            const cookies = JSON.parse(fs.readFileSync(cookiesPath, 'utf8'));
+            agent = ytdl.createAgent(cookies);
+        } catch (err) {
+            console.warn('Failed to load cookies:', err);
+        }
+
         const cleanName = name.replace(/[^\w\s-]/g, '').trim();
 
         // 1. Simple Download (Audio only or Video with Audio pre-muxed)
         if (hasAudio) {
-            const info = await ytdl.getInfo(url);
+            const info = await ytdl.getInfo(url, { agent });
             const format = info.formats.find(f => f.itag === parseInt(itag));
             if (!format) return new NextResponse('Format not found', { status: 404 });
 
@@ -33,7 +44,7 @@ export async function GET(request) {
 
             // Fix: Use a proper pass-through stream to handle potential pipe issues
             const passthrough = new PassThrough();
-            const videoStream = ytdl(url, { quality: parseInt(itag) });
+            const videoStream = ytdl(url, { quality: parseInt(itag), agent });
             videoStream.pipe(passthrough);
 
             return new NextResponse(passthrough, { headers });
@@ -41,7 +52,7 @@ export async function GET(request) {
 
         // 2. High Quality Download (Video-only + Audio merge)
         else {
-            const info = await ytdl.getInfo(url);
+            const info = await ytdl.getInfo(url, { agent });
             const videoFormat = info.formats.find(f => f.itag === parseInt(itag));
             const audioFormat = ytdl.filterFormats(info.formats, 'audioonly')
                 .find(f => f.container === 'mp4') ||

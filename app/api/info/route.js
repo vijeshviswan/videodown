@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import ytdl from '@distube/ytdl-core';
+import fs from 'fs';
+import path from 'path';
 
 export async function POST(request) {
     try {
@@ -10,7 +12,17 @@ export async function POST(request) {
             return NextResponse.json({ error: 'Invalid YouTube URL' }, { status: 400 });
         }
 
-        const info = await ytdl.getInfo(url);
+        const cookiesPath = path.resolve(process.cwd(), 'cookies.json');
+        let agent;
+        try {
+            const cookies = JSON.parse(fs.readFileSync(cookiesPath, 'utf8'));
+            agent = ytdl.createAgent(cookies);
+        } catch (err) {
+            console.warn('Failed to load cookies:', err);
+            // Fallback to default agent if cookies fail
+        }
+
+        const info = await ytdl.getInfo(url, { agent });
 
         // Get video+audio (usually up to 720p)
         const mixedFormats = ytdl.filterFormats(info.formats, 'videoandaudio');
