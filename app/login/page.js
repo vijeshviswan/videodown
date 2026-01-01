@@ -1,18 +1,25 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Lock } from 'lucide-react';
-import styles from '@/components/Downloader.module.css'; // Reusing existing styles for consistency
+import styles from '../../components/Downloader.module.css'; // Using relative path for better compatibility
 
 export default function Login() {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [mounted, setMounted] = useState(false);
     const router = useRouter();
+
+    // Ensure component only renders fully on client to avoid hydration issues
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (loading) return;
         setLoading(true);
         setError('');
 
@@ -25,16 +32,19 @@ export default function Login() {
 
             if (res.ok) {
                 router.push('/');
-                router.refresh();
+                // Small delay to ensure push happens before refresh
+                setTimeout(() => router.refresh(), 100);
             } else {
                 setError('Invalid password');
             }
         } catch (err) {
-            setError('An error occurred');
+            setError('An error occurred. Please try again.');
         } finally {
             setLoading(false);
         }
     };
+
+    if (!mounted) return null; // Avoid hydration mismatch on the icons and inputs
 
     return (
         <div className="container" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
