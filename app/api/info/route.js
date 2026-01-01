@@ -12,11 +12,21 @@ export async function POST(request) {
             return NextResponse.json({ error: 'Invalid YouTube URL' }, { status: 400 });
         }
 
-        const cookiesPath = path.resolve(process.cwd(), 'cookies.json');
         let agent;
         try {
-            const cookies = JSON.parse(fs.readFileSync(cookiesPath, 'utf8'));
-            agent = ytdl.createAgent(cookies);
+            // Priority 1: Environment Variable (for Netlify/Production)
+            if (process.env.YOUTUBE_COOKIES) {
+                const cookies = JSON.parse(process.env.YOUTUBE_COOKIES);
+                agent = ytdl.createAgent(cookies);
+            }
+            // Priority 2: Local File (for Development)
+            else {
+                const cookiesPath = path.resolve(process.cwd(), 'cookies.json');
+                if (fs.existsSync(cookiesPath)) {
+                    const cookies = JSON.parse(fs.readFileSync(cookiesPath, 'utf8'));
+                    agent = ytdl.createAgent(cookies);
+                }
+            }
         } catch (err) {
             console.warn('Failed to load cookies:', err);
             // Fallback to default agent if cookies fail
